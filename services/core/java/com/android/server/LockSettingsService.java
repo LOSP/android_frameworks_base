@@ -931,6 +931,10 @@ public class LockSettingsService extends ILockSettings.Stub {
                 && mLockPatternUtils.isSeparateProfileChallengeEnabled(userId);
     }
 
+    public byte getLockPatternSize(int userId) {
+        return mStorage.getLockPatternSize(userId);
+    }
+
     // This method should be called by LockPatternUtil only, all internal methods in this class
     // should call setLockPatternInternal.
     @Override
@@ -1259,6 +1263,9 @@ public class LockSettingsService extends ILockSettings.Stub {
     private VerifyCredentialResponse doVerifyPattern(String pattern, boolean hasChallenge,
             long challenge, int userId) throws RemoteException {
        checkPasswordReadPermission(userId);
+       if (TextUtils.isEmpty(pattern)) {
+           throw new IllegalArgumentException("Pattern can't be null or empty");
+       }
        CredentialHash storedHash = mStorage.readPatternHash(userId);
        return doVerifyPattern(pattern, storedHash, hasChallenge, challenge, userId);
     }
@@ -1285,8 +1292,10 @@ public class LockSettingsService extends ILockSettings.Stub {
 
                    @Override
                    public byte[] toHash(String pattern, int userId) {
+                       final byte lockPatternSize = getLockPatternSize(userId);
                        return LockPatternUtils.patternToHash(
-                               LockPatternUtils.stringToPattern(pattern));
+                               LockPatternUtils.stringToPattern(pattern, lockPatternSize),
+                               lockPatternSize);
                    }
 
                    @Override
@@ -1353,6 +1362,9 @@ public class LockSettingsService extends ILockSettings.Stub {
     private VerifyCredentialResponse doVerifyPassword(String password, boolean hasChallenge,
             long challenge, int userId) throws RemoteException {
        checkPasswordReadPermission(userId);
+       if (TextUtils.isEmpty(password)) {
+           throw new IllegalArgumentException("Password can't be null or empty");
+       }
        CredentialHash storedHash = mStorage.readPasswordHash(userId);
        return doVerifyPassword(password, storedHash, hasChallenge, challenge, userId);
     }
@@ -1595,7 +1607,10 @@ public class LockSettingsService extends ILockSettings.Stub {
         Secure.LOCK_PATTERN_ENABLED,
         Secure.LOCK_BIOMETRIC_WEAK_FLAGS,
         Secure.LOCK_PATTERN_VISIBLE,
-        Secure.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED
+        Secure.LOCK_PATTERN_TACTILE_FEEDBACK_ENABLED,
+        Secure.LOCK_PATTERN_SIZE,
+        Secure.LOCK_DOTS_VISIBLE,
+        Secure.LOCK_SHOW_ERROR_PATH,
     };
 
     // Reading these settings needs the contacts permission

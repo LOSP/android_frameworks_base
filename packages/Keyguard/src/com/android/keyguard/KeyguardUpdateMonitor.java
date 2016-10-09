@@ -466,13 +466,17 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
         }
     }
 
-    private void handleFingerprintAuthenticated() {
+    private void handleFingerprintAuthenticated(int authUserId) {
         try {
             final int userId;
             try {
                 userId = ActivityManagerNative.getDefault().getCurrentUser().id;
             } catch (RemoteException e) {
                 Log.e(TAG, "Failed to get current user id: ", e);
+                return;
+            }
+            if (userId != authUserId) {
+                Log.d(TAG, "Fingerprint authenticated for wrong user: " + authUserId);
                 return;
             }
             if (isFingerprintDisabled(userId)) {
@@ -760,7 +764,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
 
         @Override
         public void onAuthenticationSucceeded(AuthenticationResult result) {
-            handleFingerprintAuthenticated();
+            handleFingerprintAuthenticated(result.getUserId());
         }
 
         @Override
@@ -1110,9 +1114,16 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener {
     }
 
     private boolean shouldListenForFingerprint() {
-        return (mKeyguardIsVisible || !mDeviceInteractive || mBouncer || mGoingToSleep)
-                && !mSwitchingUser && !mFingerprintAlreadyAuthenticated
-                && !isFingerprintDisabled(getCurrentUser());
+        if (!mSwitchingUser && !mFingerprintAlreadyAuthenticated
+                && !isFingerprintDisabled(getCurrentUser())) {
+            if (mContext.getResources().getBoolean(
+                    com.android.keyguard.R.bool.config_fingerprintWakeAndUnlock)) {
+                return mKeyguardIsVisible || !mDeviceInteractive || mBouncer || mGoingToSleep;
+            } else {
+                return mDeviceInteractive && (mKeyguardIsVisible || mBouncer);
+            }
+        }
+        return false;
     }
 
     private void startListeningForFingerprint() {

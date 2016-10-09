@@ -40,11 +40,11 @@ import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.pm.UserInfo;
 import android.content.res.Configuration;
-import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.Icon;
+import android.media.session.MediaController;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
@@ -907,6 +907,10 @@ public abstract class BaseStatusBar extends SystemUI implements
         return null;
     }
 
+    protected MediaController getCurrentMediaController() {
+        return null;
+    }
+
     @Override
     public NotificationGroupManager getGroupManager() {
         return mGroupManager;
@@ -963,18 +967,15 @@ public abstract class BaseStatusBar extends SystemUI implements
         }
     }
 
-    protected View bindVetoButtonClickListener(View row, final StatusBarNotification n) {
-        View vetoButton = row.findViewById(R.id.veto);
-        vetoButton.setOnClickListener(new View.OnClickListener() {
+    protected void bindDismissListener(final ExpandableNotificationRow row) {
+        row.setOnDismissListener(new View.OnClickListener() {
             public void onClick(View v) {
                 // Accessibility feedback
                 v.announceForAccessibility(
                         mContext.getString(R.string.accessibility_notification_dismissed));
-                performRemoveNotification(n, false /* removeView */);
+                performRemoveNotification(row.getStatusBarNotification(), false /* removeView */);
             }
         });
-        vetoButton.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        return vetoButton;
     }
 
     protected void performRemoveNotification(StatusBarNotification n, boolean removeView) {
@@ -1161,6 +1162,10 @@ public abstract class BaseStatusBar extends SystemUI implements
                 }
 
                 final ExpandableNotificationRow row = (ExpandableNotificationRow) v;
+                if (v instanceof MediaExpandableNotificationRow
+                        && !((MediaExpandableNotificationRow) v).inflateGuts()) {
+                    return false;
+                }
                 bindGuts(row);
 
                 // Assume we are a status_bar_notification_row
@@ -1622,8 +1627,20 @@ public abstract class BaseStatusBar extends SystemUI implements
             // create the row view
             LayoutInflater inflater = (LayoutInflater) mContext.getSystemService(
                     Context.LAYOUT_INFLATER_SERVICE);
-            row = (ExpandableNotificationRow) inflater.inflate(R.layout.status_bar_notification_row,
-                    parent, false);
+
+            // cannot use isMediaNotification()
+            if (sbn.getNotification().category != null
+                    && sbn.getNotification().category.equals(Notification.CATEGORY_TRANSPORT)) {
+                Log.d("ro", "inflating media notification");
+                row = (MediaExpandableNotificationRow) inflater.inflate(
+                        R.layout.status_bar_notification_row_media, parent, false);
+                ((MediaExpandableNotificationRow)row).setMediaController(
+                        getCurrentMediaController());
+            } else {
+                row = (ExpandableNotificationRow) inflater.inflate(
+                        R.layout.status_bar_notification_row,
+                        parent, false);
+            }
             row.setExpansionLogger(this, entry.notification.getKey());
             row.setGroupManager(mGroupManager);
             row.setHeadsUpManager(mHeadsUpManager);
@@ -1651,9 +1668,7 @@ public abstract class BaseStatusBar extends SystemUI implements
         }
 
         workAroundBadLayerDrawableOpacity(row);
-        View vetoButton = bindVetoButtonClickListener(row, sbn);
-        vetoButton.setContentDescription(mContext.getString(
-                R.string.accessibility_remove_notification));
+        bindDismissListener(row);
 
         // NB: the large icon is now handled entirely by the template
 
@@ -2412,10 +2427,6 @@ public abstract class BaseStatusBar extends SystemUI implements
         }
         updateHeadsUp(key, entry, shouldPeek, alertAgain);
         updateNotifications();
-
-        // Update the veto button accordingly (and as a result, whether this row is
-        // swipe-dismissable)
-        bindVetoButtonClickListener(entry.row, notification);
 
         if (!notification.isClearable()) {
             // The user may have performed a dismiss action on the notification, since it's

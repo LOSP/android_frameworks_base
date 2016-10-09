@@ -88,7 +88,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
     private boolean mSensitive;
     private boolean mSensitiveHiddenInGeneral;
     private boolean mShowingPublicInitialized;
-    private boolean mHideSensitiveForIntrinsicHeight;
+    protected boolean mHideSensitiveForIntrinsicHeight;
 
     /**
      * Is this notification expanded by the system. The expansion state can be overridden by the
@@ -103,13 +103,12 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
 
     private Animator mTranslateAnim;
     private ArrayList<View> mTranslateableViews;
-    private NotificationContentView mPublicLayout;
-    private NotificationContentView mPrivateLayout;
-    private int mMaxExpandHeight;
-    private int mHeadsUpHeight;
+    protected NotificationContentView mPublicLayout;
+    protected NotificationContentView mPrivateLayout;
+    protected int mMaxExpandHeight;
+    protected int mHeadsUpHeight;
     private View mVetoButton;
     private int mNotificationColor;
-    private boolean mClearable;
     private ExpansionLogger mLogger;
     private String mLoggingKey;
     private NotificationSettingsIconRow mSettingsIconRow;
@@ -125,7 +124,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
     private boolean mIsSummaryWithChildren;
     private NotificationChildrenContainer mChildrenContainer;
     private ViewStub mSettingsIconRowStub;
-    private ViewStub mGutsStub;
+    protected ViewStub mGutsStub;
     private boolean mIsSystemChildExpanded;
     private boolean mIsPinned;
     private FalsingManager mFalsingManager;
@@ -280,7 +279,6 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
         mPublicLayout.onNotificationUpdated(entry);
         mShowingPublicInitialized = false;
         updateNotificationColor();
-        updateClearability();
         if (mIsSummaryWithChildren) {
             mChildrenContainer.recreateNotificationHeader(mExpandClickListener, mEntry.notification);
             mChildrenContainer.onNotificationUpdated();
@@ -779,6 +777,14 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
         return mGroupParentWhenDismissed;
     }
 
+    public void performDismiss() {
+        mVetoButton.performClick();
+    }
+
+    public void setOnDismissListener(OnClickListener listener) {
+        mVetoButton.setOnClickListener(listener);
+    }
+
     public interface ExpansionLogger {
         public void logNotificationExpansion(String key, boolean userAction, boolean expanded);
     }
@@ -880,6 +886,9 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
             }
         });
         mVetoButton = findViewById(R.id.veto);
+        mVetoButton.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        mVetoButton.setContentDescription(mContext.getString(
+                R.string.accessibility_remove_notification));
 
         // Add the views that we translate to reveal the gear
         mTranslateableViews = new ArrayList<View>();
@@ -891,6 +900,10 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
         mTranslateableViews.remove(mSettingsIconRowStub);
         mTranslateableViews.remove(mChildrenContainerStub);
         mTranslateableViews.remove(mGutsStub);
+    }
+
+    public View getVetoButton() {
+        return mVetoButton;
     }
 
     public void resetTranslation() {
@@ -990,10 +1003,11 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
         return mSettingsIconRow;
     }
 
-    public void inflateGuts() {
+    public boolean inflateGuts() {
         if (mGuts == null) {
             mGutsStub.inflate();
         }
+        return false;
     }
 
     private void updateChildrenVisibility() {
@@ -1157,7 +1171,9 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
     }
 
     /**
-     * @return Can the underlying notification be cleared?
+     * @return Can the underlying notification be cleared? This can be different from whether the
+     *         notification can be dismissed in case notifications are sensitive on the lockscreen.
+     * @see #canViewBeDismissed()
      */
     public boolean isClearable() {
         return mStatusBarNotification != null && mStatusBarNotification.isClearable();
@@ -1249,7 +1265,7 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
         }
     }
 
-    private void updateMaxHeights() {
+    protected void updateMaxHeights() {
         int intrinsicBefore = getIntrinsicHeight();
         View expandedChild = mPrivateLayout.getExpandedChild();
         if (expandedChild == null) {
@@ -1317,7 +1333,6 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
         NotificationContentView showingLayout = getShowingLayout();
         showingLayout.updateBackgroundColor(animated);
         mPrivateLayout.updateExpandButtons(isExpandable());
-        updateClearability();
         mShowingPublicInitialized = true;
     }
 
@@ -1357,12 +1372,12 @@ public class ExpandableNotificationRow extends ActivatableNotificationView {
         return mIsHeadsUp;
     }
 
-    private void updateClearability() {
-        // public versions cannot be dismissed
-        mVetoButton.setVisibility(canViewBeDismissed() ? View.VISIBLE : View.GONE);
-    }
-
-    private boolean canViewBeDismissed() {
+    /**
+     * @return Whether this view is allowed to be dismissed. Only valid for visible notifications as
+     *         otherwise some state might not be updated. To request about the general clearability
+     *         see {@link #isClearable()}.
+     */
+    public boolean canViewBeDismissed() {
         return isClearable() && (!mShowingPublic || !mSensitiveHiddenInGeneral);
     }
 
