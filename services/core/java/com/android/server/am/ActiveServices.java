@@ -2548,6 +2548,10 @@ public final class ActiveServices {
     }
 
     void cleanUpRemovedTaskLocked(TaskRecord tr, ComponentName component, Intent baseIntent) {
+        this.cleanUpRemovedTaskLocked(tr, component, baseIntent, false);
+    }
+
+    void cleanUpRemovedTaskLocked(TaskRecord tr, ComponentName component, Intent baseIntent, boolean killAll) {
         ArrayList<ServiceRecord> services = new ArrayList<>();
         ArrayMap<ComponentName, ServiceRecord> alls = getServices(tr.userId);
         for (int i = alls.size() - 1; i >= 0; i--) {
@@ -2561,7 +2565,7 @@ public final class ActiveServices {
         for (int i = services.size() - 1; i >= 0; i--) {
             ServiceRecord sr = services.get(i);
             if (sr.startRequested) {
-                if ((sr.serviceInfo.flags&ServiceInfo.FLAG_STOP_WITH_TASK) != 0) {
+                if (killAll || ((sr.serviceInfo.flags&ServiceInfo.FLAG_STOP_WITH_TASK) != 0)) {
                     Slog.i(TAG, "Stopping service " + sr.shortName + ": remove task");
                     stopServiceLocked(sr);
                 } else {
