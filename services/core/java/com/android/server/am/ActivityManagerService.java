@@ -9578,16 +9578,8 @@ public final class ActivityManagerService extends ActivityManagerNative
             return;
         }
 
-        boolean allowBackground = mAppOpsService.noteOperation(
-            AppOpsManager.OP_RUN_IN_BACKGROUND, tr.userId, component.getPackageName()
-        ) == AppOpsManager.MODE_ALLOWED;
-
-        if (!allowBackground) {
-            killProcess = true;
-        }
-
         // Find any running services associated with this app and stop if needed.
-        mServices.cleanUpRemovedTaskLocked(tr, component, new Intent(tr.getBaseIntent()), !allowBackground);
+        mServices.cleanUpRemovedTaskLocked(tr, component, new Intent(tr.getBaseIntent()));
 
         if (!killProcess) {
             return;
@@ -9624,7 +9616,7 @@ public final class ActivityManagerService extends ActivityManagerNative
                     }
                 }
 
-                if (proc.foregroundServices && allowBackground) {
+                if (proc.foregroundServices) {
                     // Don't kill process(es) with foreground service.
                     return;
                 }
